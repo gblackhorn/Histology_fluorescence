@@ -163,7 +163,7 @@ for din = 1:Di_num
 	di_data = region_data(idx_di);
 	Line_y{din} = [di_data.MeanVal]; % collect data for line plot
 	Line_y_error{din} = [di_data.SteVal]; % collect data for line plot
-	Line_xlabel{din} = {di_data.days}; % collect data for line plot
+	% Line_xlabel{din} = {di_data.days}; % collect data for line plot
 
 	RawData_di = {di_data.RawVal};
 	groupNames = {di_data.label};
@@ -173,6 +173,12 @@ end
 
 % Use line plot to show the fluorecense levels at different time. One line one dilution. All dilutions are plotted in one axis
 [f_line] = fig_canvas(1,'fig_name','LinePlot');
-Line_x = [1:1:D_num]
+ax = gca;
+Line_x = [1:1:D_num];
+Line_xlabel = DayGroup;
 hold on
-errorbar(Line_x, )
+for din = 1:Di_num
+	errorbar(Line_x,Line_y{din},Line_y_error(din));
+end
+xticks(Line_x);
+xticklabels(Line_xlabel);
