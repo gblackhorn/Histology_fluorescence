@@ -30,7 +30,8 @@ DefaultDir.mat = FIM_folder;
 % Keywords and labels. 
 % Note: Name the CSV files using the labels below to group data automatically
 DilutionGroup = {'d1','d2','d3'}; 
-DayGroup = {'7','14','21'};
+% DayGroup = {'7','14','21'};
+DayGroup = [7 14 21];
 RegionGroup = {'subnuclei','soma'};
 
 Di_num = numel(DilutionGroup);
@@ -49,13 +50,14 @@ kgc_mr = 1;
 for din = 1:Di_num
 	DiStr = DilutionGroup{din};
 	for dn = 1:D_num
-		DStr = DayGroup{dn};
+		Dnum = DayGroup(dn);
+		DStr = num2str(Dnum);
 		keywords_groups_MonoRegion{kgc_mr} = sprintf('%s-%s', DiStr,DStr);
 		kgc_mr = kgc_mr+1;
 		for rn = 1:R_num
 			RStr = RegionGroup{rn};
 			keywords_groups{kgc} = sprintf('%s-%s-%s',DiStr,DStr,RStr);
-			keywords_cells{kgc} = {DiStr,DStr,RStr};
+			keywords_cells{kgc} = {DiStr,Dnum,RStr};
 			kgc = kgc+1;
 		end
 	end
@@ -126,6 +128,7 @@ for rn = 1:R_num
 		grouped_data(rn).data(gnmr).FijiTbl = vertcat(region_data(idx).combined_data);
 		FijiTbl = vertcat(region_data(idx).combined_data);
 
+
 		if ~isempty(grouped_data(rn).data(gnmr).FijiTbl)
 			grouped_data(rn).data(gnmr).dilutionID = region_data(idx(1)).dilution;
 			grouped_data(rn).data(gnmr).days = region_data(idx(1)).days;
@@ -134,8 +137,22 @@ for rn = 1:R_num
 			grouped_data(rn).data(gnmr).MeanVal = mean([FijiTbl.Mean]);
 			grouped_data(rn).data(gnmr).StdVal = std([FijiTbl.Mean]);
 			grouped_data(rn).data(gnmr).SteVal = std([FijiTbl.Mean]) / sqrt(length([FijiTbl.Mean]));
+		else
+			grouped_data(rn).data(gnmr).dilutionID = '';
+			grouped_data(rn).data(gnmr).days = '';
+
+			% grouped_data(rn).data(gnmr).RawVal = [FijiTbl.Mean];
+			% grouped_data(rn).data(gnmr).MeanVal = 0;
+			% grouped_data(rn).data(gnmr).StdVal = 0;
+			% grouped_data(rn).data(gnmr).SteVal = 0;
 		end
 	end 
+	% field_dilution = {grouped_data(rn).data.dilutionID};
+	% field_days = {grouped_data(rn).data.days};
+	% field_dilution = cellfun(@(x) char(x),field_dilution,'UniformOutput',false);
+	% field_days = cellfun(@(x) char(x),field_days,'UniformOutput',false);
+	% [grouped_data(rn).data.dilutionID] = field_dilution{:};
+	% [grouped_data(rn).data.days] = field_days{:};
 end
 
 %% ====================
@@ -150,6 +167,7 @@ plot_region = 'subnuclei'; % 'subnuclei' or 'soma'
 region_data = grouped_data(idx_region).data;
 
 % Group data according to the dilution and make box plots showing the results of various waiting days
+Line_x = cell(1,Di_num);
 Line_y = cell(1,Di_num);
 Line_y_error = cell(1,Di_num);
 Line_xlabel = cell(1,Di_num);
@@ -161,24 +179,25 @@ for din = 1:Di_num
 
 	[~,idx_di] = filter_CharCells({region_data.dilutionID},dilutionID);
 	di_data = region_data(idx_di);
+    Line_x{din} = [di_data.days];
 	Line_y{din} = [di_data.MeanVal]; % collect data for line plot
 	Line_y_error{din} = [di_data.SteVal]; % collect data for line plot
 	% Line_xlabel{din} = {di_data.days}; % collect data for line plot
 
 	RawData_di = {di_data.RawVal};
 	groupNames = {di_data.label};
-	[~, box_stat.(din)] = boxPlot_with_scatter(RawData_di, 'groupNames', groupNames,...
+	[~, box_stat.(DilutionGroup{din})] = boxPlot_with_scatter(RawData_di, 'groupNames', groupNames,...
 		'plotWhere', ax, 'stat', true, 'FontSize', FontSize,'FontWeight',FontWeight);
 end
 
 % Use line plot to show the fluorecense levels at different time. One line one dilution. All dilutions are plotted in one axis
 [f_line] = fig_canvas(1,'fig_name','LinePlot');
 ax = gca;
-Line_x = [1:1:D_num];
+% Line_x = [1:1:D_num];
 Line_xlabel = DayGroup;
 hold on
 for din = 1:Di_num
-	errorbar(Line_x,Line_y{din},Line_y_error(din));
+	errorbar(Line_x{din},Line_y{din},Line_y_error{din});
 end
-xticks(Line_x);
-xticklabels(Line_xlabel);
+xticks(DayGroup);
+xticklabels(arrayfun(@num2str, DayGroup, 'UniformOutput', 0));
