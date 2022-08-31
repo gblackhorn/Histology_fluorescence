@@ -14,11 +14,11 @@
 % Folders
 PC_name = getenv('COMPUTERNAME'); 
 % set folders for different situation
-DataFolder = 'G:\Workspace\Inscopix_Seagate';
+% DataFolder = 'G:\Workspace\Inscopix_Seagate';
 
 % FIM: fluorescence intensity measurement
 if strcmp(PC_name, 'GD-AW-OFFICE')
-	FIM_folder = 'D:\guoda\Documents\Workspace\Analysis\Confocal'; % office desktop
+	FIM_folder = 'G:\Workspace\confocal'; % office desktop
 elseif strcmp(PC_name, 'LAPTOP-84IERS3H')
 	FIM_folder = 'C:\Users\guoda\Documents\Workspace\Analysis\Confocal'; % laptop
 end
@@ -29,7 +29,7 @@ DefaultDir.mat = FIM_folder;
 
 % Keywords and labels. 
 % Note: Name the CSV files using the labels below to group data automatically
-DilutionGroup = {'d1','d2','d3'}; 
+DilutionGroup = {'D1','D2','D3'}; 
 % DayGroup = {'7','14','21'};
 DayGroup = [7 14 21];
 RegionGroup = {'subnuclei','soma'};
@@ -39,7 +39,7 @@ D_num = numel(DayGroup);
 R_num = numel(RegionGroup);
 
 group_num = Di_num*D_num*R_num;
-keywords_groups = cell(1,group_num); % each cell contains a single string, such as 'D1-14-soma'
+keywords_groups = cell(1,group_num); % each cell contains a single string, such as 'D1-07-soma'
 keywords_cells = cell(1,group_num); % each cell contains a cell of keywords, such as {'D1','14','soma'}
 combined_csv_data = cell(1,group_num);
 kgc = 1; % current keyword group counting
@@ -51,15 +51,21 @@ for din = 1:Di_num
 	DiStr = DilutionGroup{din};
 	for dn = 1:D_num
 		Dnum = DayGroup(dn);
-		DStr = num2str(Dnum);
-		keywords_groups_MonoRegion{kgc_mr} = sprintf('%s-%s', DiStr,DStr);
-		kgc_mr = kgc_mr+1;
+		DStr = num2str(Dnum,'%02.f');
+		keywords_groups_MonoRegion{kgc_mr} = sprintf('%s-%s', DiStr,DStr); % example: 'D1-07'
 		for rn = 1:R_num
-			RStr = RegionGroup{rn};
+            % fprintf('din-%d, dn-%d, rn-%d \n', din, dn, rn)
+            % if din == 3 && dn == 3 && rn == 1
+            % 	pause
+            % end
+            
+			RStr = RegionGroup{rn}; % example: 'soma' or 'nuclei'
 			keywords_groups{kgc} = sprintf('%s-%s-%s',DiStr,DStr,RStr);
-			keywords_cells{kgc} = {DiStr,Dnum,RStr};
+			keywords_cells_1{kgc} = {DiStr,DStr,RStr};
+			keywords_cells_2{kgc} = {keywords_groups_MonoRegion{kgc_mr},RStr};
 			kgc = kgc+1;
 		end
+		kgc_mr = kgc_mr+1;
 	end
 end
 
@@ -80,15 +86,17 @@ end
 % combined_csv_data = cell(size(keywords_region));
 % RegionType_num = numel(keywords_region);
 for gn = 1:group_num
-	keywords = keywords_cells{gn};
+    keywords_1 = keywords_cells_1{gn};
+    keywords_2 = keywords_cells_2{gn};
+    % fprintf('group_num: %d \n',gn);
 
-	[combined_csv_data{gn},csv_num,csv_list] = read_csv_files_in_folder(csv_folder,'keywords',keywords,...
+	[combined_csv_data{gn},csv_num,csv_list] = read_csv_files_in_folder(csv_folder,'keywords',keywords_2,...
 		'gui_read',false);
 	if csv_num ~= 0
 		combined_csv_data{gn}.label = keywords_groups{gn};
-		combined_csv_data{gn}.dilution = keywords{1};
-		combined_csv_data{gn}.days = keywords{2};
-		combined_csv_data{gn}.region = keywords{3};
+		combined_csv_data{gn}.dilution = keywords_1{1};
+		combined_csv_data{gn}.days = str2double(keywords_1{2});
+		combined_csv_data{gn}.region = keywords_1{3};
 
 		% keywords_WithSpace = cellfun(@(x) [x, ' '], keywords, 'UniformOutput',false); % add space to the end of each keyword
 		% keywords_string = string(keywords_WithSpace); % convert keywords cell array to string array for display
@@ -100,7 +108,7 @@ roi_val_data = [combined_csv_data{:}]; % Put csv_data containing different regio
 %% ====================
 % 3. Save the roi_data
 default_mat_path = fullfile(DefaultDir.mat,'*.mat');
-mat_folder = uigetdir(DefaultDir.mat,'Select a folder to save fluorescence intensity measurement')
+mat_folder = uigetdir(DefaultDir.mat,'Select a folder to save fluorescence intensity measurement');
 % [mat_file,mat_folder] = uiputfile(default_mat_path,'Save fluorescence intensity measurement', 'FIM.mat');
 if mat_folder ~= 0
 	DefaultDir.mat = mat_folder;
@@ -115,8 +123,8 @@ grouped_data = empty_content_struct({'region','data'},R_num); % group data using
 for rn = 1:R_num
 	region = RegionGroup{rn};
 	grouped_data(rn).region = region;
-	[~,idx] = filter_CharCells({roi_val_data.region},region);
-	region_data = roi_val_data(idx); % data belongs to certain region type: subnuclei or soma
+	[~,idx_region] = filter_CharCells({roi_val_data.region},region);
+	region_data = roi_val_data(idx_region); % data belongs to certain region type: subnuclei or soma
 
 	grouped_data(rn).data = empty_content_struct({'label','dilutionID','days','FijiTbl','RawVal','MeanVal','StdVal','SteVal'},...
 		group_num_MonoRegion);
@@ -139,7 +147,8 @@ for rn = 1:R_num
 			grouped_data(rn).data(gnmr).SteVal = std([FijiTbl.Mean]) / sqrt(length([FijiTbl.Mean]));
 		else
 			grouped_data(rn).data(gnmr).dilutionID = '';
-			grouped_data(rn).data(gnmr).days = '';
+			% grouped_data(rn).data(gnmr).days = '';
+			grouped_data(rn).data(gnmr).days = [];
 
 			% grouped_data(rn).data(gnmr).RawVal = [FijiTbl.Mean];
 			% grouped_data(rn).data(gnmr).MeanVal = 0;
@@ -161,6 +170,9 @@ close all
 FontSize = 18;
 FontWeight = 'bold';
 plot_region = 'subnuclei'; % 'subnuclei' or 'soma'
+LineColors = {'#3FF5E6', '#F55E58', '#F5A427', '#4CA9F5', '#33F577',...
+		'#408F87', '#8F4F7A', '#798F7D', '#8F7832', '#28398F', '#000000'};
+LineWidth = 1;
 
 % Get data measured using ROI type specified by 'plot_region'
 [~,idx_region] = filter_CharCells({grouped_data.region},plot_region);
@@ -189,15 +201,23 @@ for din = 1:Di_num
 	[~, box_stat.(DilutionGroup{din})] = boxPlot_with_scatter(RawData_di, 'groupNames', groupNames,...
 		'plotWhere', ax, 'stat', true, 'FontSize', FontSize,'FontWeight',FontWeight);
 end
+LegendStr = DilutionGroup; % add dilution name as legend for line plots
 
 % Use line plot to show the fluorecense levels at different time. One line one dilution. All dilutions are plotted in one axis
-[f_line] = fig_canvas(1,'fig_name','LinePlot');
+[f_line] = fig_canvas(1,'fig_name','LinePlot of Multiple Dilutions');
 ax = gca;
 % Line_x = [1:1:D_num];
 Line_xlabel = DayGroup;
 hold on
 for din = 1:Di_num
-	errorbar(Line_x{din},Line_y{din},Line_y_error{din});
+	errorbar(Line_x{din},Line_y{din},Line_y_error{din},...
+		'Color',LineColors{din},'LineWidth',LineWidth);
 end
+xlim([0 28])
 xticks(DayGroup);
 xticklabels(arrayfun(@num2str, DayGroup, 'UniformOutput', 0));
+legend(LegendStr,'location','northeast')
+legend('boxoff')
+set(gca,'box','off')
+set(gca,'FontSize',FontSize)
+set(gca,'FontWeight',FontWeight)
