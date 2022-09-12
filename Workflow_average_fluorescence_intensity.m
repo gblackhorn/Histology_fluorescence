@@ -143,7 +143,7 @@ close all
 plot_region = 'soma'; % 'subnuclei' or 'soma'. Specify the ROI type
 
 % Settings for figures
-SaveFig = false; % true/false
+SaveFig = false; % true/false. Save figures or not. Statistics will be save in m file together with figures if "true" 
 FontSize = 18;
 FontWeight = 'bold';
 LineColors = {'#3FF5E6', '#F55E58', '#F5A427', '#4CA9F5', '#33F577',...
