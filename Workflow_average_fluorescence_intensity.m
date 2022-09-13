@@ -24,6 +24,15 @@ end
 DilutionGroup = {'D1','D2','D3'}; % Dilution1, Dilution2, etc. 
 DayGroup = [7 14 21]; % Waiting time in days
 RegionGroup = {'subnuclei','soma'}; % ROI type
+%
+%
+% - Settings for figures
+SaveFig = false; % true/false. Save figures or not. Statistics will be save in m file together with figures if "true" 
+FontSize = 18;
+FontWeight = 'bold';
+LineColors = {'#3FF5E6', '#F55E58', '#F5A427', '#4CA9F5', '#33F577',...
+		'#408F87', '#8F4F7A', '#798F7D', '#8F7832', '#28398F', '#000000'};
+LineWidth = 1;
 
 
 %% ====================
@@ -91,19 +100,10 @@ for gn = 1:group_num
 end 
 roi_val_data = [combined_csv_data{:}]; % Put csv_data containing different region-type data into a single struct  
 
-%% ====================
-% 3. Save the roi_val_data with GUI
-default_mat_path = fullfile(DefaultDir.mat,'*.mat');
-mat_folder = uigetdir(DefaultDir.mat,'Select a folder to save fluorescence intensity measurement');
-if mat_folder ~= 0
-	DefaultDir.mat = mat_folder;
-	dt = datestr(now, 'yyyymmdd-HHMM');
-	save(fullfile(mat_folder, [dt, '_FIM_data']),...
-	    'roi_val_data');
-end
 
 %% ====================
-% 4. Organize data and calculate the mean, std and ste for each group 
+% Continue for fluorescence intensity analysis. Jump to section 6 for cell density analysis
+% 3. Organize data and calculate the mean, std and ste for each group 
 grouped_data = empty_content_struct({'region','data'},R_num); % group data using region type ('subnuclei' or 'soma')
 for rn = 1:R_num
 	region = RegionGroup{rn};
@@ -137,18 +137,23 @@ for rn = 1:R_num
 	end 
 end
 
+
 %% ====================
-% 5. Plot data
+% 4. Save the roi_val_data with GUI
+mat_folder = uigetdir(DefaultDir.mat,'Select a folder to save fluorescence intensity measurement');
+if mat_folder ~= 0
+	DefaultDir.mat = mat_folder;
+	dt = datestr(now, 'yyyymmdd-HHMM');
+	save(fullfile(mat_folder, [dt, '_FIM_data']),...
+	    'roi_val_data','grouped_data');
+end
+
+
+%% ====================
+% 5. Plot fluorescence intensity data
+% Variable 'grouped_data' (acquire from section 3, or load it from the file saved in section 4) must exist for this section
 close all
 plot_region = 'soma'; % 'subnuclei' or 'soma'. Specify the ROI type
-
-% Settings for figures
-SaveFig = false; % true/false. Save figures or not. Statistics will be save in m file together with figures if "true" 
-FontSize = 18;
-FontWeight = 'bold';
-LineColors = {'#3FF5E6', '#F55E58', '#F5A427', '#4CA9F5', '#33F577',...
-		'#408F87', '#8F4F7A', '#798F7D', '#8F7832', '#28398F', '#000000'};
-LineWidth = 1;
 
 % Get data measured using ROI type specified by 'plot_region'
 [~,idx_region] = filter_CharCells({grouped_data.region},plot_region);
@@ -218,3 +223,69 @@ if SaveFig
 		    'box_stat');
 	end
 end
+
+
+%% ====================
+% Codes below are for cell density analysis
+% 6.1 Prepare data for cell density analysis. Filter entries, input cell count
+
+% Make sure that variable 'roi_val_data' (acquired in section 2) exists
+% Filter the entries in 'roi_val_data' with keywords
+% Entries containing the area, in which cells would be count, should be kept
+keywords_keep_entries = {'D2','subnuclei'}; % entry will be kept if its field "label" contains all the keywords
+[kept_labels, idx] = filter_CharCells({roi_val_data.label},keywords_keep_entries); % Get the locations of wanted entries
+density_data = roi_val_data(idx);
+for en = 1:numel(density_data)
+	[density_data(en).combined_data.CellCount] = deal(0); % add a new field, CellCount to combined_data field
+end
+
+% Now, it's time to leave Matlab for FIJI
+% Count the cell number in each area listed in density_data(x).combined_data, and fill the "CellCount field" of density_data(x).combined_data
+% The counting can be done in ImageJ/FIJI with "cell counter" plugin (Plugins>>Analyze>>Cell Counter)
+
+
+%% ====================
+% 6.2 Prepare data for cell density analysis. Calculate the densities using area and cell count
+for en = 1:numel(density_data)
+	CombinedData = density_data(en).combined_data;
+	AreaArray = [CombinedData.Area];
+	CellCountArray = [CombinedData.CellCount];
+	DensityArray = CellCountArray./AreaArray; % calculate the densitys
+	density_data(en).density = DensityArray; 
+end
+
+%% ====================
+% Save the density_data if wanted
+mat_folder = uigetdir(DefaultDir.mat,'Select a folder to save density_data');
+if mat_folder ~= 0
+	DefaultDir.mat = mat_folder;
+	dt = datestr(now, 'yyyymmdd-HHMM');
+	save(fullfile(mat_folder, [dt, '_density_data']),...
+	    'density_data');
+end
+
+%% ====================
+% 7. Box plot of cell density 
+% Run the section 6 to get 'density_data' variable or load it from a mat file
+densities = {density_data.density}; % All densities
+labels = {density_data.label}; % Labels to mark density group
+
+[f_box_density] = fig_canvas(1,'fig_name','BoxPlot Cell Density');
+[~, box_stat_density] = boxPlot_with_scatter(densities, 'groupNames', labels,...
+		'plotWhere', gca, 'stat', true, 'FontSize', FontSize,'FontWeight','bold');  
+
+if SaveFig
+	% default_fig_path = fullfile(DefaultDir.fig,'*.mat');
+	FigFolder = uigetdir(DefaultDir.fig,'Select a folder to save cell density box plot');
+	% [mat_file,mat_folder] = uiputfile(default_mat_path,'Save fluorescence intensity measurement', 'FIM.mat');
+	if mat_folder ~= 0
+		DefaultDir.fig = FigFolder;
+		dt = datestr(now, 'yyyymmdd-HHMM');
+		fbox_name = sprintf('%s_boxplot_cell_density',dt);
+		savePlot(f_box_density,...
+			'guiSave', 'off', 'save_dir', FigFolder, 'fname', fbox_name);
+		save(fullfile(FigFolder, [dt, '_boxplot_stat']),...
+		    'box_stat_density');
+	end
+end
+
